@@ -1,3 +1,3 @@
 # midisender
 
-A small program that sends midi events, specified in a JSON file, to a virtual midi instrument, in realtime.
+A small program that sends midi events from a JSON file to a virtual midi instrument, in time.
