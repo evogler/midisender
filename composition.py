@@ -28,7 +28,7 @@ def composition():
             if p not in newNotes:
                 newNotes.append(p)
         newNotes.sort()
-        for p in newNotes:
+        for j, p in enumerate(newNotes):
             data["notes"].append({
                 "pitch": p,
                 "velocity": 50 + i * 3,
