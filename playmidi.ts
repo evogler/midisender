@@ -3,7 +3,13 @@ const easymidi = require("easymidi");
 
 const output = new easymidi.Output("arstneio", true);
 
-const data = JSON.parse(fs.readFileSync("./notes.txt", "utf8"));
+const filename = process.argv[2];
+if (filename === undefined) {
+  console.log("Usage: node playmidi.js <midi-file>");
+  process.exit(1);
+}
+
+const data = JSON.parse(fs.readFileSync(filename, "utf8"));
 
 interface Note {
   pitch: number;

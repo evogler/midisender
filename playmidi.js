@@ -1,7 +1,12 @@
 var fs = require("fs");
 var easymidi = require("easymidi");
 var output = new easymidi.Output("arstneio", true);
-var data = JSON.parse(fs.readFileSync("./notes.txt", "utf8"));
+var filename = process.argv[2];
+if (filename === undefined) {
+    console.log("Usage: node playmidi.js <midi-file>");
+    process.exit(1);
+}
+var data = JSON.parse(fs.readFileSync(filename, "utf8"));
 var realTime = function (bpm) { return function (time) { return time * (60 / bpm) * 1000; }; };
 data.notes.sort(function (a, b) { return a.time - b.time; });
 var soundingNotes = {};
