@@ -9,7 +9,6 @@ if (filename === undefined) {
 var data = JSON.parse(fs.readFileSync(filename, "utf8"));
 var realTime = function (bpm) { return function (time) { return time * (60 / bpm) * 1000; }; };
 data.notes.sort(function (a, b) { return a.time - b.time; });
-var soundingNotes = {};
 var playing = true;
 var bufferSize = 1000; // milliseconds
 var bufferIncrement = 100; // milliseconds
@@ -23,16 +22,11 @@ var scheduleNote = function (note, time0) {
         if (!playing)
             return;
         output.send("noteon", { note: pitch, channel: channel, velocity: velocity });
-        soundingNotes[note.pitch] = (soundingNotes[note.pitch] || 0) + 1;
     }, startTime - now());
     setTimeout(function () {
         if (!playing)
             return;
-        soundingNotes[note.pitch] = soundingNotes[note.pitch] - 1;
-        if (soundingNotes[note.pitch] <= 0) {
-            delete soundingNotes[note.pitch];
-            output.send("noteoff", { note: pitch, channel: channel, velocity: velocity });
-        }
+        output.send("noteoff", { note: pitch, channel: channel, velocity: velocity });
     }, endTime - now());
 };
 var killAllNotes = function () {

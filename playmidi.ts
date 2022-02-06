@@ -27,7 +27,6 @@ interface MusicData {
 const realTime = (bpm: number) => (time: number) => time * (60 / bpm) * 1000;
 
 data.notes.sort((a, b) => a.time - b.time);
-const soundingNotes: Record<number, number> = {};
 let playing = true;
 
 const bufferSize = 1000; // milliseconds
@@ -44,15 +43,10 @@ const scheduleNote = (note: Note, time0: number) => {
   setTimeout(() => {
     if (!playing) return;
     output.send("noteon", { note: pitch, channel, velocity });
-    soundingNotes[note.pitch] = (soundingNotes[note.pitch] || 0) + 1;
   }, startTime - now());
   setTimeout(() => {
     if (!playing) return;
-    soundingNotes[note.pitch] = soundingNotes[note.pitch] - 1;
-    if (soundingNotes[note.pitch] <= 0) {
-      delete soundingNotes[note.pitch];
-      output.send("noteoff", { note: pitch, channel, velocity });
-    }
+    output.send("noteoff", { note: pitch, channel, velocity });
   }, endTime - now());
 };
 
@@ -105,6 +99,6 @@ const main = () => {
   killAllNotes();
   scheduleNotes(0);
   listenForQuit();
-}
+};
 
 main();
