@@ -14,6 +14,7 @@ var bufferSize = 1000; // milliseconds
 var bufferIncrement = 100; // milliseconds
 var now = function () { return (function (t) { return (t[0] + t[1] / 1e9) * 1000; })(process.hrtime()); };
 var overallStartTime = now();
+var latestEndingNote = now();
 var scheduleNote = function (note, time0) {
     var startTime = realTime(data.bpm)(note.time) + time0 + bufferSize;
     var endTime = realTime(data.bpm)(note.time + note.duration) + time0 + bufferSize;
@@ -22,6 +23,7 @@ var scheduleNote = function (note, time0) {
         if (!playing)
             return;
         output.send("noteon", { note: pitch, channel: channel, velocity: velocity });
+        latestEndingNote = Math.max(latestEndingNote, endTime);
     }, startTime - now());
     setTimeout(function () {
         if (!playing)
@@ -30,12 +32,21 @@ var scheduleNote = function (note, time0) {
     }, endTime - now());
 };
 var killAllNotes = function () {
-    // for (const note of Object.keys(soundingNotes)) {
-    for (var reps = 0; reps < 10; reps++) {
+    for (var reps = 0; reps < 1; reps++) {
+        var _loop_1 = function (i) {
+            setTimeout(function () {
+                output.send("noteoff", { note: i, channel: 1, velocity: 0 });
+            }, 0);
+        };
         for (var i = 0; i < 128; i++) {
-            output.send("noteoff", { note: i, channel: 1, velocity: 0 });
+            _loop_1(i);
         }
     }
+};
+var finish = function () {
+    killAllNotes();
+    console.log("finish()");
+    setTimeout(function () { return process.exit(0); }, 150);
 };
 var scheduleNotes = function (notePos, timeWindowStart) {
     if (notePos === void 0) { notePos = 0; }
@@ -51,11 +62,7 @@ var scheduleNotes = function (notePos, timeWindowStart) {
         setTimeout(function () { return scheduleNotes(notePos, timeWindowStart + bufferIncrement); }, bufferIncrement);
     }
     else {
-        setTimeout(function () {
-            console.log("done");
-            killAllNotes();
-            setTimeout(function () { return process.exit(0); }, 1000);
-        }, 1000);
+        setTimeout(finish, latestEndingNote - now());
     }
 };
 var listenForQuit = function () {
@@ -64,8 +71,8 @@ var listenForQuit = function () {
     process.stdin.on("data", function (input) {
         if (input.toString() === "q") {
             playing = false;
-            killAllNotes();
-            setTimeout(function () { return process.exit(0); }, 1000);
+            setTimeout(killAllNotes, 2000);
+            setTimeout(function () { return process.exit(0); }, 2500);
         }
     });
 };
