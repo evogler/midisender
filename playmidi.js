@@ -77,7 +77,7 @@ var listenForQuit = function () {
     });
 };
 var main = function () {
-    killAllNotes();
+    console.log('Playing. Press "q" to quit.');
     scheduleNotes(0);
     listenForQuit();
 };

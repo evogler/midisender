@@ -115,7 +115,7 @@ const listenForQuit = () => {
 };
 
 const main = () => {
-  killAllNotes();
+  console.log('Playing. Press "q" to quit.');
   scheduleNotes(0);
   listenForQuit();
 };
