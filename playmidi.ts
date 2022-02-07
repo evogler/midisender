@@ -27,7 +27,6 @@ interface MusicData {
 const realTime = (bpm: number) => (time: number) => time * (60 / bpm) * 1000;
 
 data.notes.sort((a, b) => a.time - b.time);
-let playing = true;
 
 const bufferSize = 1000; // milliseconds
 const bufferIncrement = 100; // milliseconds
@@ -35,54 +34,54 @@ const bufferIncrement = 100; // milliseconds
 const now = (): number => ((t) => (t[0] + t[1] / 1e9) * 1000)(process.hrtime());
 const overallStartTime = now();
 let latestEndingNote = now();
+
 type EventType = "noteon" | "noteoff";
-const timeouts = new Map<[number, EventType], NodeJS.Timeout>();
+const timeouts = new Map<string, NodeJS.Timeout>();
 
 const scheduleNote = (note: Note, time0: number, noteId: number) => {
   const startTime = realTime(data.bpm)(note.time) + time0 + bufferSize;
   const endTime =
     realTime(data.bpm)(note.time + note.duration) + time0 + bufferSize;
+  latestEndingNote = Math.max(latestEndingNote, endTime);
   const { pitch, channel, velocity } = note;
 
   timeouts.set(
-    [noteId, "noteon"],
+    [noteId, "noteon"].toString(),
     setTimeout(() => {
-      timeouts.delete([noteId, "noteon"]);
-      if (!playing) return;
       output.send("noteon", { note: pitch, channel, velocity });
-      latestEndingNote = Math.max(latestEndingNote, endTime);
+      timeouts.delete([noteId, "noteon"].toString());
     }, startTime - now())
   );
 
   timeouts.set(
-    [noteId, "noteoff"],
+    [noteId, "noteoff"].toString(),
     setTimeout(() => {
-      timeouts.delete([noteId, "noteoff"]);
-      if (!playing) return;
       output.send("noteoff", { note: pitch, channel, velocity });
+      timeouts.delete([noteId, "noteoff"].toString());
     }, endTime - now())
   );
 };
 
-const cancelTimeouts = () => {
-  timeouts.forEach((timeout) => clearTimeout(timeout));
-  timeouts.clear();
-};
-
 const killAllNotes = () => {
-  for (let reps = 0; reps < 1; reps++) {
-    for (let i = 0; i < 128; i++) {
-      setTimeout(() => {
-        output.send("noteoff", { note: i, channel: 1, velocity: 0 });
-      }, i);
+  timeouts.forEach((timeout, key) => {
+    const [noteId, eventType] = key.split(",");
+    if (eventType === "noteoff") {
+      const note = data.notes[noteId];
+      output.send("noteoff", {
+        note: note.pitch,
+        channel: note.channel,
+        velocity: note.velocity,
+      });
+    } else if (eventType === "noteon") {
+      clearTimeout(timeouts.get(key));
     }
-  }
+    timeouts.delete(key);
+  });
 };
 
 const finish = () => {
   killAllNotes();
-  console.log("finish()");
-  setTimeout(() => process.exit(0), 150);
+  process.exit(0);
 };
 
 const scheduleNotes = (notePos = 0, timeWindowStart = 0) => {
@@ -101,7 +100,7 @@ const scheduleNotes = (notePos = 0, timeWindowStart = 0) => {
       bufferIncrement
     );
   } else {
-    setTimeout(finish, latestEndingNote - now());
+    setTimeout(finish, latestEndingNote - now() + 100);
   }
 };
 
@@ -110,7 +109,6 @@ const listenForQuit = () => {
   process.stdin.resume();
   process.stdin.on("data", (input) => {
     if (input.toString() === "q") {
-      playing = false;
       finish();
     }
   });

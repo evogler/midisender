@@ -9,7 +9,6 @@ if (filename === undefined) {
 var data = JSON.parse(fs.readFileSync(filename, "utf8"));
 var realTime = function (bpm) { return function (time) { return time * (60 / bpm) * 1000; }; };
 data.notes.sort(function (a, b) { return a.time - b.time; });
-var playing = true;
 var bufferSize = 1000; // milliseconds
 var bufferIncrement = 100; // milliseconds
 var now = function () { return (function (t) { return (t[0] + t[1] / 1e9) * 1000; })(process.hrtime()); };
@@ -19,41 +18,37 @@ var timeouts = new Map();
 var scheduleNote = function (note, time0, noteId) {
     var startTime = realTime(data.bpm)(note.time) + time0 + bufferSize;
     var endTime = realTime(data.bpm)(note.time + note.duration) + time0 + bufferSize;
+    latestEndingNote = Math.max(latestEndingNote, endTime);
     var pitch = note.pitch, channel = note.channel, velocity = note.velocity;
-    timeouts.set([noteId, "noteon"], setTimeout(function () {
-        timeouts["delete"]([noteId, "noteon"]);
-        if (!playing)
-            return;
+    timeouts.set([noteId, "noteon"].toString(), setTimeout(function () {
         output.send("noteon", { note: pitch, channel: channel, velocity: velocity });
-        latestEndingNote = Math.max(latestEndingNote, endTime);
+        timeouts["delete"]([noteId, "noteon"].toString());
     }, startTime - now()));
-    timeouts.set([noteId, "noteoff"], setTimeout(function () {
-        timeouts["delete"]([noteId, "noteoff"]);
-        if (!playing)
-            return;
+    timeouts.set([noteId, "noteoff"].toString(), setTimeout(function () {
         output.send("noteoff", { note: pitch, channel: channel, velocity: velocity });
+        timeouts["delete"]([noteId, "noteoff"].toString());
     }, endTime - now()));
 };
-var cancelTimeouts = function () {
-    timeouts.forEach(function (timeout) { return clearTimeout(timeout); });
-    timeouts.clear();
-};
 var killAllNotes = function () {
-    for (var reps = 0; reps < 1; reps++) {
-        var _loop_1 = function (i) {
-            setTimeout(function () {
-                output.send("noteoff", { note: i, channel: 1, velocity: 0 });
-            }, i);
-        };
-        for (var i = 0; i < 128; i++) {
-            _loop_1(i);
+    timeouts.forEach(function (timeout, key) {
+        var _a = key.split(","), noteId = _a[0], eventType = _a[1];
+        if (eventType === "noteoff") {
+            var note = data.notes[noteId];
+            output.send("noteoff", {
+                note: note.pitch,
+                channel: note.channel,
+                velocity: note.velocity
+            });
         }
-    }
+        else if (eventType === "noteon") {
+            clearTimeout(timeouts.get(key));
+        }
+        timeouts["delete"](key);
+    });
 };
 var finish = function () {
     killAllNotes();
-    console.log("finish()");
-    setTimeout(function () { return process.exit(0); }, 150);
+    process.exit(0);
 };
 var scheduleNotes = function (notePos, timeWindowStart) {
     if (notePos === void 0) { notePos = 0; }
@@ -69,7 +64,7 @@ var scheduleNotes = function (notePos, timeWindowStart) {
         setTimeout(function () { return scheduleNotes(notePos, timeWindowStart + bufferIncrement); }, bufferIncrement);
     }
     else {
-        setTimeout(finish, latestEndingNote - now());
+        setTimeout(finish, latestEndingNote - now() + 100);
     }
 };
 var listenForQuit = function () {
@@ -77,7 +72,6 @@ var listenForQuit = function () {
     process.stdin.resume();
     process.stdin.on("data", function (input) {
         if (input.toString() === "q") {
-            playing = false;
             finish();
         }
     });
