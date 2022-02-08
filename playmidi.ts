@@ -84,8 +84,8 @@ const finish = () => {
   process.exit(0);
 };
 
-const scheduleNotes = (notePos = 0, timeWindowStart = 0) => {
-  const timeWindowEnd = timeWindowStart + bufferSize;
+const scheduleNotes = (notePos = 0) => {
+  const timeWindowEnd = now() + bufferSize - overallStartTime;
   while (
     notePos < data.notes.length &&
     realTime(data.bpm)(data.notes[notePos].time) < timeWindowEnd
@@ -95,10 +95,7 @@ const scheduleNotes = (notePos = 0, timeWindowStart = 0) => {
     notePos += 1;
   }
   if (notePos < data.notes.length) {
-    setTimeout(
-      () => scheduleNotes(notePos, timeWindowStart + bufferIncrement),
-      bufferIncrement
-    );
+    setTimeout( () => scheduleNotes(notePos), bufferIncrement);
   } else {
     setTimeout(finish, latestEndingNote - now() + 100);
   }

@@ -50,10 +50,9 @@ var finish = function () {
     killAllNotes();
     process.exit(0);
 };
-var scheduleNotes = function (notePos, timeWindowStart) {
+var scheduleNotes = function (notePos) {
     if (notePos === void 0) { notePos = 0; }
-    if (timeWindowStart === void 0) { timeWindowStart = 0; }
-    var timeWindowEnd = timeWindowStart + bufferSize;
+    var timeWindowEnd = now() + bufferSize - overallStartTime;
     while (notePos < data.notes.length &&
         realTime(data.bpm)(data.notes[notePos].time) < timeWindowEnd) {
         var note = data.notes[notePos];
@@ -61,7 +60,7 @@ var scheduleNotes = function (notePos, timeWindowStart) {
         notePos += 1;
     }
     if (notePos < data.notes.length) {
-        setTimeout(function () { return scheduleNotes(notePos, timeWindowStart + bufferIncrement); }, bufferIncrement);
+        setTimeout(function () { return scheduleNotes(notePos); }, bufferIncrement);
     }
     else {
         setTimeout(finish, latestEndingNote - now() + 100);
