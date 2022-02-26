@@ -11,7 +11,7 @@ def writeToFileAndPlay(data, filename="notes.json"):
 
 
 def scale(key):
-    return sorted([(i + key) % 12 for i in [0, 2, 4, 7, 9]])
+    return sorted([(i + key) % 12 for i in [0, 2, 4, 7, 8]])
 
 
 def randOctave():
