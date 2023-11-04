@@ -19,8 +19,8 @@ chordTypes = {
     'aug': [0, 4, 8],
     'sus': [0, 5, 7],
     '7': [0, 4, 7, 10],
-    # 'maj7': [0, 4, 7, 11],
-    'maj7': [0, 4, 9, 14],
+    'maj7': [0, 4, 7, 11],
+    # 'maj7': [0, 4, 9, 14],
     'min7': [0, 2, 3, 7],
     'dim7': [0, 3, 6, 9],
     'hdim7': [0, 3, 6, 10],
@@ -44,8 +44,8 @@ def arpeggios(chords):
 def surround(notes):
     res = []
     for i, note in enumerate(notes):
-        if i % 6 in [0, 2]:
-            lead_note = note - 1
+        if i % 9 in [1, 4, 6]:
+            lead_note = note - 4
             if res and res[-1] == lead_note:
                 res[-1] -= 1
             res.extend([lead_note, note])
@@ -80,29 +80,18 @@ def window(from_min, from_max, to_min, to_max):
 make_vel = window(0, 10, 0, 127)
 
 def composition():
-    data = {"bpm": 200, "notes": []}
+    data = {"bpm": 250, "notes": []}
     timePos = 0
-    progression = [
-        [0, 'maj7'],
-        [2, 'min7'],
-        [4, 'min'],
-        [5, 'maj7'],
-    ]
-    progression = progression_transpositions(progression, list(range(13)))
-    notes = surround(arpeggios(progression))
-    notes = transpose_pattern(notes, [0, 0, 12, 12, 0, 0, -12])
-    # print(notes)
-    # notes.append(24)
+    notes = [0, 4, 7, 12, 7, 4] * 100
+    notes = transpose_pattern(notes, [0, 0, 12, 12, 0 ,0, -12])
+    notes = surround(notes)
     for i, p in enumerate(notes):
-        S = 5
-        L = 6
-        dur = nth(i, [*fitEighths([L, S])])
-        vel = nth(i, [6, 6.5]) + math.sin(i / 2) * .5
-        # vel = nth(i, [6, 6, 6, 6, 7] )
-        # leg = nth(i, [ .8, .8, .8, .3, 1, 1, 1])
-        # leg = nth(i, [1.1]) + math.sin(i / 7.4) * .8
-        leg = .9
-        for trans in [48]:
+        S = 2; L = 3
+        # dur = nth(i, [*fitEighths([*[S] * 3, L])])
+        dur = .5
+        vel = 6
+        leg = 1
+        for trans in [60, 72]:
             data["notes"].append({
                 "pitch": p + trans,
                 "velocity": int(make_vel(vel)),
