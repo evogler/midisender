@@ -1,83 +1,136 @@
-var fs = require("fs");
-var easymidi = require("easymidi");
-var output = new easymidi.Output("arstneio", true);
-var filename = process.argv[2];
-if (filename === undefined) {
+const fs = require("fs");
+const easymidi = require("easymidi");
+
+const BUFFER_SIZE = 1000; // milliseconds
+const BUFFER_INCREMENT = 100; // milliseconds
+
+const readFile = () => {
+  const filename = process.argv[2];
+  if (filename === undefined) {
     console.log("Usage: node playmidi.js <midi-file>");
     process.exit(1);
+  }
+  const data = JSON.parse(fs.readFileSync(filename, "utf8"));
+  data.notes.sort((a, b) => a.time - b.time);
+  return data;
+};
+
+const realTime = (bpm) => (time) => time * (60 / bpm) * 1000;
+
+const now = function () {
+  return (function (t) {
+    return (t[0] + t[1] / 1e9) * 1000;
+  })(process.hrtime());
+};
+
+const logToFile = (message) => {
+  fs.appendFile('debug.log', message + '\n', (err) => {
+    if (err) throw err;
+  });
 }
-var data = JSON.parse(fs.readFileSync(filename, "utf8"));
-var realTime = function (bpm) { return function (time) { return time * (60 / bpm) * 1000; }; };
-data.notes.sort(function (a, b) { return a.time - b.time; });
-var bufferSize = 1000; // milliseconds
-var bufferIncrement = 100; // milliseconds
-var now = function () { return (function (t) { return (t[0] + t[1] / 1e9) * 1000; })(process.hrtime()); };
-var overallStartTime = now();
-var latestEndingNote = now();
-var timeouts = new Map();
-var scheduleNote = function (note, time0, noteId) {
-    var startTime = realTime(data.bpm)(note.time) + time0 + bufferSize;
-    var endTime = realTime(data.bpm)(note.time + note.duration) + time0 + bufferSize;
-    latestEndingNote = Math.max(latestEndingNote, endTime);
-    var pitch = note.pitch, channel = note.channel, velocity = note.velocity;
-    timeouts.set([noteId, "noteon"].toString(), setTimeout(function () {
-        output.send("noteon", { note: pitch, channel: channel, velocity: velocity });
-        timeouts["delete"]([noteId, "noteon"].toString());
-    }, startTime - now()));
-    timeouts.set([noteId, "noteoff"].toString(), setTimeout(function () {
-        output.send("noteoff", { note: pitch, channel: channel, velocity: velocity });
-        timeouts["delete"]([noteId, "noteoff"].toString());
-    }, endTime - now()));
+
+// <GLOBAL STATE>
+const output = new easymidi.Output("arstneio", true);
+const overallStartTime = now();
+let latestEndingNote = now();
+const timeouts = new Map();
+const data = readFile();
+// </GLOBAL STATE>
+
+const scheduleNote = function (note, time0, noteId) {
+  const startTime = realTime(data.bpm)(note.time) + time0 + BUFFER_SIZE;
+  const endTime =
+    realTime(data.bpm)(note.time + note.duration) + time0 + BUFFER_SIZE;
+  logToFile(`scheduling note ${noteId} at ${startTime - overallStartTime} to ${endTime - overallStartTime} (${endTime - startTime} ms)`);
+  latestEndingNote = Math.max(latestEndingNote, endTime);
+  const { pitch, channel, velocity } = note;
+  const _now = now();
+  timeouts.set(
+    [noteId, "noteon"].toString(),
+    setTimeout(() => {
+      output.send("noteon", {
+        channel,
+        velocity,
+        note: pitch,
+      });
+      timeouts.delete([noteId, "noteon"].toString());
+    }, startTime - _now)
+  );
+  timeouts.set(
+    [noteId, "noteoff"].toString(),
+    setTimeout(function () {
+      output.send("noteoff", {
+        channel,
+        velocity,
+        note: pitch,
+      });
+      timeouts.delete([noteId, "noteoff"].toString());
+    }, endTime - _now)
+  );
 };
-var killAllNotes = function () {
-    timeouts.forEach(function (timeout, key) {
-        var _a = key.split(","), noteId = _a[0], eventType = _a[1];
-        if (eventType === "noteoff") {
-            var note = data.notes[noteId];
-            output.send("noteoff", {
-                note: note.pitch,
-                channel: note.channel,
-                velocity: note.velocity
-            });
-        }
-        else if (eventType === "noteon") {
-            clearTimeout(timeouts.get(key));
-        }
-        timeouts["delete"](key);
-    });
-};
-var finish = function () {
-    killAllNotes();
-    process.exit(0);
-};
-var scheduleNotes = function (notePos) {
-    if (notePos === void 0) { notePos = 0; }
-    var timeWindowEnd = now() + bufferSize - overallStartTime;
-    while (notePos < data.notes.length &&
-        realTime(data.bpm)(data.notes[notePos].time) < timeWindowEnd) {
-        var note = data.notes[notePos];
-        scheduleNote(note, overallStartTime, notePos);
-        notePos += 1;
+
+const killAllNotes = function () {
+  timeouts.forEach((timeout, key) => {
+    const [noteId, eventType] = key.split(",");
+    if (eventType === "noteoff") {
+      const note = data.notes[noteId];
+      output.send("noteoff", {
+        note: note.pitch,
+        channel: note.channel,
+        velocity: note.velocity,
+      });
+    } else if (eventType === "noteon") {
+      clearTimeout(timeouts.get(key));
     }
-    if (notePos < data.notes.length) {
-        setTimeout(function () { return scheduleNotes(notePos); }, bufferIncrement);
+    timeouts.delete(key);
+  });
+};
+
+const finish = function () {
+  killAllNotes();
+  process.exit(0);
+};
+
+const scheduleNotes = (notePos) => {
+  if (notePos === void 0) {
+    // notePos = 0;
+    throw new Error("notePos is undefined, for some reason");
+  }
+  const timeWindowEnd = now() + BUFFER_SIZE - overallStartTime;
+  while (
+    notePos < data.notes.length &&
+    realTime(data.bpm)(data.notes[notePos].time) < timeWindowEnd
+  ) {
+    const note = data.notes[notePos];
+    scheduleNote(note, overallStartTime, notePos);
+    notePos += 1;
+  }
+  if (notePos < data.notes.length) {
+    setTimeout(function () {
+      return scheduleNotes(notePos);
+    }, BUFFER_INCREMENT);
+  } else {
+    setTimeout(finish, latestEndingNote - now() + 100);
+  }
+};
+
+const listenForQuit = () => {
+	if (process.stdin.setRawMode) {
+		process.stdin.setRawMode(true);
+	}
+  process.stdin.resume();
+  process.stdin.on("data", function (input) {
+		console.log('player got input:', input)
+    if (input.toString().indexOf("q") > -1) {
+      finish();
     }
-    else {
-        setTimeout(finish, latestEndingNote - now() + 100);
-    }
+  });
 };
-var listenForQuit = function () {
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.on("data", function (input) {
-        if (input.toString() === "q") {
-            finish();
-        }
-    });
+
+const main = function () {
+  console.log('Playing. Press "q" to quit.');
+  scheduleNotes(0);
+  listenForQuit();
 };
-var main = function () {
-    console.log('Playing. Press "q" to quit.');
-    scheduleNotes(0);
-    listenForQuit();
-};
+
 main();
