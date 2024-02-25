@@ -1,6 +1,5 @@
 import * as easymidi from "easymidi";
 import { readFile } from "fs/promises";
-// functions
 const getDataFromFilenameFromPrompt = async () => {
     const filename = process.argv[2];
     if (filename === undefined) {
@@ -13,9 +12,12 @@ const getDataFromFilenameFromPrompt = async () => {
 };
 const realTime = (bpm) => (time) => time * (60 / bpm) * 1000;
 const now = () => ((t) => (t[0] + t[1] / 1e9) * 1000)(process.hrtime());
-const scheduleNote = (bpm, note, time0, noteId, latestEndingNote, config, timeouts, output) => {
-    const startTime = realTime(bpm)(note.time) + time0 + config.bufferSize;
-    const endTime = realTime(bpm)(note.time + note.duration) + time0 + config.bufferSize;
+const scheduleNote = (bpm, note, noteId, latestEndingNote, config, timeouts, output, overallStartTime) => {
+    // returns newLatestEndingNote
+    const startTime = realTime(bpm)(note.time) + overallStartTime + config.bufferSize;
+    const endTime = realTime(bpm)(note.time + note.duration) +
+        overallStartTime +
+        config.bufferSize;
     const newLatestEndingNote = Math.max(latestEndingNote, endTime);
     const { pitch, channel, velocity } = note;
     timeouts.set([noteId, "noteon"].toString(), setTimeout(() => {
@@ -33,7 +35,7 @@ const scheduleNote = (bpm, note, time0, noteId, latestEndingNote, config, timeou
     return newLatestEndingNote;
 };
 const killAllNotes = (data, timeouts, output) => {
-    timeouts.forEach((timeout, key) => {
+    timeouts.forEach((_, key) => {
         const [noteId, eventType] = key.split(",");
         if (eventType === "noteoff") {
             const note = data.notes[parseInt(noteId)];
@@ -53,43 +55,47 @@ const finish = (data, timeouts, output) => {
     killAllNotes(data, timeouts, output);
     process.exit(0);
 };
-const scheduleNotes = (data, notePos, latestEndingNote, config, timeouts, output) => {
-    const { bufferSize, bufferIncrement, overallStartTime } = config;
+const scheduleNotes = (data, notePos, latestEndingNote, config, timeouts, output, overallStartTime) => {
+    const { bufferSize, bufferIncrement } = config;
     const timeWindowEnd = now() + bufferSize - overallStartTime;
     let newLatestEndingNote = latestEndingNote;
     while (notePos < data.notes.length &&
         realTime(data.bpm)(data.notes[notePos].time) < timeWindowEnd) {
         const note = data.notes[notePos];
-        latestEndingNote = scheduleNote(data.bpm, note, overallStartTime, notePos, latestEndingNote, config, timeouts, output);
+        newLatestEndingNote = scheduleNote(data.bpm, note, notePos, latestEndingNote, config, timeouts, output, overallStartTime);
         notePos += 1;
     }
     if (notePos < data.notes.length) {
-        setTimeout(() => scheduleNotes(data, notePos, latestEndingNote, config, timeouts, output), bufferIncrement);
+        setTimeout(() => scheduleNotes(data, notePos, newLatestEndingNote, config, timeouts, output, overallStartTime), bufferIncrement);
     }
     else {
         setTimeout(finish, latestEndingNote - now() + 100);
     }
 };
-const listenForQuit = (data, timeouts, output) => {
+const listenForQuit = (onQuit) => {
     process.stdin.setRawMode(true);
     process.stdin.resume();
     process.stdin.on("data", (input) => {
         if (input.toString() === "q") {
-            finish(data, timeouts, output);
+            onQuit();
         }
     });
 };
-export const main = async () => {
-    const bufferSize = 1000; // milliseconds
-    const bufferIncrement = 100; // milliseconds
+export const play = async (data) => {
+    const config = {
+        bufferSize: 1000,
+        bufferIncrement: 100, // ms
+    };
     const overallStartTime = now();
-    const config = { bufferSize, bufferIncrement, overallStartTime };
-    const output = new easymidi.Output("arstneio", true);
-    let latestEndingNote = now();
+    const output = new easymidi.Output("my-midi-output", true);
+    const latestEndingNote = now();
     const timeouts = new Map();
     console.log('Playing. Press "q" to quit.');
-    const data = await getDataFromFilenameFromPrompt();
-    scheduleNotes(data, 0, latestEndingNote, config, timeouts, output);
-    listenForQuit(data, timeouts, output);
+    scheduleNotes(data, 0, latestEndingNote, config, timeouts, output, overallStartTime);
+    const onQuit = () => finish(data, timeouts, output);
+    listenForQuit(onQuit);
 };
-// main();
+export const main = async () => {
+    const data = await getDataFromFilenameFromPrompt();
+    play(data);
+};
