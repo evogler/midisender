@@ -34,7 +34,7 @@ const scheduleNote = (bpm, note, noteId, latestEndingNote, config, timeouts, out
     }, endTime - now()));
     return newLatestEndingNote;
 };
-const scheduleNotes = (data, notePos, latestEndingNote, config, timeouts, output, overallStartTime) => {
+const scheduleNotes = (data, notePos, latestEndingNote, config, timeouts, mainLoopTimeout, output, overallStartTime, finishCallback) => {
     const { bufferSize, bufferIncrement } = config;
     const timeWindowEnd = now() + bufferSize - overallStartTime;
     let newLatestEndingNote = latestEndingNote;
@@ -45,13 +45,19 @@ const scheduleNotes = (data, notePos, latestEndingNote, config, timeouts, output
         notePos += 1;
     }
     if (notePos < data.notes.length) {
-        setTimeout(() => scheduleNotes(data, notePos, newLatestEndingNote, config, timeouts, output, overallStartTime), bufferIncrement);
+        mainLoopTimeout.timeout = setTimeout(() => scheduleNotes(data, notePos, newLatestEndingNote, config, timeouts, mainLoopTimeout, output, overallStartTime, finishCallback), bufferIncrement);
     }
     else {
-        setTimeout(finish, latestEndingNote - now() + 100);
+        setTimeout(() => {
+            finishCallback();
+            // setTimeout(() => process.exit(), 100);
+        }, latestEndingNote - now() + 100);
     }
 };
-const killAllNotes = (data, timeouts, output) => {
+const killAllNotes = (data, timeouts, output, mainLoopTimeout) => {
+    if (mainLoopTimeout.timeout) {
+        clearTimeout(mainLoopTimeout.timeout);
+    }
     timeouts.forEach((_, key) => {
         const [noteId, eventType] = key.split(",");
         if (eventType === "noteoff") {
@@ -62,27 +68,17 @@ const killAllNotes = (data, timeouts, output) => {
                 velocity: note.velocity,
             });
         }
-        else if (eventType === "noteon") {
-            clearTimeout(timeouts.get(key));
-        }
+        clearTimeout(timeouts.get(key));
         timeouts.delete(key);
     });
 };
-const finish = (data, timeouts, output) => {
-    killAllNotes(data, timeouts, output);
-    process.exit(0);
-};
-const listenForQuit = (quit) => {
+const listenForQuit = (handleInput) => {
     console.log('Playing. Press "q" to quit.');
     process.stdin.setRawMode(true);
     process.stdin.resume();
-    process.stdin.on("data", (input) => {
-        if (input.toString() === "q") {
-            quit();
-        }
-    });
+    process.stdin.on("data", handleInput);
 };
-export const play = async (data) => {
+export const play = async (data, finishCallback = () => { }) => {
     const config = {
         bufferSize: 1000,
         bufferIncrement: 100, // ms
@@ -91,12 +87,19 @@ export const play = async (data) => {
     const output = new easymidi.Output("my-midi-output", true);
     const latestEndingNote = now();
     const timeouts = new Map();
-    scheduleNotes(data, 0, latestEndingNote, config, timeouts, output, overallStartTime);
-    const quit = () => finish(data, timeouts, output);
-    return quit;
+    const mainLoopTimeout = { timeout: null };
+    scheduleNotes(data, 0, latestEndingNote, config, timeouts, mainLoopTimeout, output, overallStartTime, finishCallback);
+    const killLiveNotes = () => killAllNotes(data, timeouts, output, mainLoopTimeout);
+    return killLiveNotes;
 };
 export const main = async () => {
     const data = await getDataFromFilenameFromPrompt();
-    const quit = await play(data);
-    listenForQuit(quit);
+    const killLiveNotes = await play(data, () => process.stdin.pause());
+    const handleInput = (input) => {
+        if (input.toString() === "q") {
+            killLiveNotes();
+        }
+        process.stdin.pause();
+    };
+    listenForQuit(handleInput);
 };

@@ -1,0 +1,40 @@
+{
+  "bpm": 200,
+  "notes": [
+    {
+      "pitch": 47,
+      "velocity": 76,
+      "channel": 1,
+      "time": 0,
+      "duration": 0.4909090909090909
+    },
+    {
+      "pitch": 48,
+      "velocity": 85,
+      "channel": 1,
+      "time": 0.5454545454545454,
+      "duration": 0.40909090909090906
+    },
+    {
+      "pitch": 64,
+      "velocity": 81,
+      "channel": 1,
+      "time": 1.0,
+      "duration": 0.4909090909090909
+    },
+    {
+      "pitch": 68,
+      "velocity": 88,
+      "channel": 1,
+      "time": 1.5454545454545454,
+      "duration": 0.40909090909090906
+    },
+    {
+      "pitch": 57,
+      "velocity": 81,
+      "channel": 1,
+      "time": 2.0,
+      "duration": 0.4909090909090909
+    }
+  ]
+}
