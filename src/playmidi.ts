@@ -5,7 +5,7 @@ import { kill } from "process";
 
 // types
 
-interface Note {
+export interface Note {
   pitch: number;
   velocity: number;
   channel: number;
@@ -13,7 +13,7 @@ interface Note {
   duration: number;
 }
 
-interface MusicData {
+export interface MusicData {
   bpm: number;
   notes: Note[];
 }
