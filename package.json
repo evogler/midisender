@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "A small program that sends midi events, specified in a JSON file, to a virtual midi instrument, in realtime.",
   "main": "playmidi.js",
+  "type": "module",
+  "module": "ESNext",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -19,5 +21,8 @@
   "dependencies": {
     "easymidi": "^3.1.0",
     "typescript": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.20"
   }
 }
