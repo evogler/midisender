@@ -52,7 +52,7 @@ const scheduleNote = (
   output: Output,
   overallStartTime: number
 ): number => {
-  // returns newLatestEndingNote
+  /* returns newLatestEndingNote */
 
   const startTime =
     realTime(bpm)(note.time) + overallStartTime + config.bufferSize;
@@ -84,28 +84,6 @@ const scheduleNote = (
   );
 
   return newLatestEndingNote;
-};
-
-const killAllNotes = (data: MusicData, timeouts: Timeouts, output: Output) => {
-  timeouts.forEach((_, key) => {
-    const [noteId, eventType] = key.split(",");
-    if (eventType === "noteoff") {
-      const note = data.notes[parseInt(noteId)];
-      output.send("noteoff", {
-        note: note.pitch,
-        channel: note.channel,
-        velocity: note.velocity,
-      } as EasymidiNote);
-    } else if (eventType === "noteon") {
-      clearTimeout(timeouts.get(key));
-    }
-    timeouts.delete(key);
-  });
-};
-
-const finish = (data: MusicData, timeouts: Timeouts, output: Output) => {
-  killAllNotes(data, timeouts, output);
-  process.exit(0);
 };
 
 const scheduleNotes = (
@@ -156,17 +134,40 @@ const scheduleNotes = (
   }
 };
 
-const listenForQuit = (onQuit: () => void) => {
+const killAllNotes = (data: MusicData, timeouts: Timeouts, output: Output) => {
+  timeouts.forEach((_, key) => {
+    const [noteId, eventType] = key.split(",");
+    if (eventType === "noteoff") {
+      const note = data.notes[parseInt(noteId)];
+      output.send("noteoff", {
+        note: note.pitch,
+        channel: note.channel,
+        velocity: note.velocity,
+      } as EasymidiNote);
+    } else if (eventType === "noteon") {
+      clearTimeout(timeouts.get(key));
+    }
+    timeouts.delete(key);
+  });
+};
+
+const finish = (data: MusicData, timeouts: Timeouts, output: Output) => {
+  killAllNotes(data, timeouts, output);
+  process.exit(0);
+};
+
+const listenForQuit = (quit: () => void) => {
+  console.log('Playing. Press "q" to quit.');
   process.stdin.setRawMode(true);
   process.stdin.resume();
   process.stdin.on("data", (input) => {
     if (input.toString() === "q") {
-      onQuit();
+      quit();
     }
   });
 };
 
-export const play = async (data: MusicData) => {
+export const play = async (data: MusicData): Promise<() => void> => {
   const config: Config = {
     bufferSize: 1000, // ms
     bufferIncrement: 100, // ms
@@ -176,7 +177,6 @@ export const play = async (data: MusicData) => {
   const latestEndingNote = now();
   const timeouts = new Map<string, NodeJS.Timeout>();
 
-  console.log('Playing. Press "q" to quit.');
   scheduleNotes(
     data,
     0,
@@ -187,11 +187,14 @@ export const play = async (data: MusicData) => {
     overallStartTime
   );
 
-  const onQuit = () => finish(data, timeouts, output);
-  listenForQuit(onQuit);
+  const quit = () => finish(data, timeouts, output);
+  return quit;
 };
 
 export const main = async () => {
   const data = await getDataFromFilenameFromPrompt();
-  play(data);
+
+  const quit = await play(data);
+
+  listenForQuit(quit);
 };
