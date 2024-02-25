@@ -5,6 +5,7 @@
   "main": "playmidi.js",
   "type": "module",
   "module": "ESNext",
+  "types": "./dist/playmidi.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

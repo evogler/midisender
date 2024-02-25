@@ -35,6 +35,7 @@ const scheduleNote = (bpm, note, noteId, latestEndingNote, config, timeouts, out
     return newLatestEndingNote;
 };
 const scheduleNotes = (data, notePos, latestEndingNote, config, timeouts, mainLoopTimeout, output, overallStartTime, finishCallback) => {
+    console.log('scheduleNotes()');
     const { bufferSize, bufferIncrement } = config;
     const timeWindowEnd = now() + bufferSize - overallStartTime;
     let newLatestEndingNote = latestEndingNote;
@@ -86,8 +87,9 @@ const listenForQuit = (killLiveNotes) => {
     process.stdin.on("data", handleInput);
 };
 export const play = async (data, finishCallback = () => { }) => {
+    console.log('play()');
     const config = {
-        bufferSize: 1000,
+        bufferSize: 500,
         bufferIncrement: 100, // ms
     };
     const overallStartTime = now();

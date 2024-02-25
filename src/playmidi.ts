@@ -18,7 +18,7 @@ export interface MusicData {
   notes: Note[];
 }
 
-type EventType = "noteon" | "noteoff";
+// export type EasymidiEventType = "noteon" | "noteoff";
 
 type Timeouts = Map<string, NodeJS.Timeout>;
 
@@ -98,6 +98,7 @@ const scheduleNotes = (
   overallStartTime: number,
   finishCallback: () => void
 ) => {
+  console.log('scheduleNotes()')
   const { bufferSize, bufferIncrement } = config;
   const timeWindowEnd = now() + bufferSize - overallStartTime;
   let newLatestEndingNote = latestEndingNote;
@@ -184,8 +185,9 @@ export const play = async (
   data: MusicData,
   finishCallback = () => {}
 ): Promise<() => void> => {
+  console.log('play()')
   const config: Config = {
-    bufferSize: 1000, // ms
+    bufferSize: 500, // ms
     bufferIncrement: 100, // ms
   };
   const overallStartTime = now();
