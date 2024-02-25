@@ -1,6 +1,7 @@
 import * as easymidi from "easymidi";
 import { Output, Note as EasymidiNote } from "easymidi";
 import { readFile } from "fs/promises";
+import { kill } from "process";
 
 // types
 
@@ -134,7 +135,7 @@ const scheduleNotes = (
       bufferIncrement
     );
   } else {
-    setTimeout(() => {
+    mainLoopTimeout.timeout = setTimeout(() => {
       finishCallback();
       // setTimeout(() => process.exit(), 100);
     }, latestEndingNote - now() + 100);
@@ -147,6 +148,7 @@ const killAllNotes = (
   output: Output,
   mainLoopTimeout: { timeout: NodeJS.Timeout | null }
 ) => {
+  console.log('KILL ALL NOTES!')
   if (mainLoopTimeout.timeout) {
     clearTimeout(mainLoopTimeout.timeout);
   }
@@ -163,12 +165,18 @@ const killAllNotes = (
     clearTimeout(timeouts.get(key));
     timeouts.delete(key);
   });
+  console.log('done clearing timeouts')
 };
 
-const listenForQuit = (handleInput: (arg0: Buffer) => void) => {
+const listenForQuit = (killLiveNotes: () => void) => {
   console.log('Playing. Press "q" to quit.');
   process.stdin.setRawMode(true);
   process.stdin.resume();
+  const handleInput = (input: Buffer) => {
+    if (input.toString() === "q") {
+      killLiveNotes();
+    }
+  };
   process.stdin.on("data", handleInput);
 };
 
@@ -198,19 +206,17 @@ export const play = async (
     finishCallback
   );
 
-  const killLiveNotes = () =>
+  const killLiveNotes = () => {
     killAllNotes(data, timeouts, output, mainLoopTimeout);
+    finishCallback();
+  };
   return killLiveNotes;
 };
 
 export const main = async () => {
   const data = await getDataFromFilenameFromPrompt();
+
   const killLiveNotes = await play(data, () => process.stdin.pause());
-  const handleInput = (input: Buffer) => {
-    if (input.toString() === "q") {
-      killLiveNotes();
-    }
-    process.stdin.pause();
-  };
-  listenForQuit(handleInput);
+
+  listenForQuit(killLiveNotes);
 };

@@ -48,13 +48,14 @@ const scheduleNotes = (data, notePos, latestEndingNote, config, timeouts, mainLo
         mainLoopTimeout.timeout = setTimeout(() => scheduleNotes(data, notePos, newLatestEndingNote, config, timeouts, mainLoopTimeout, output, overallStartTime, finishCallback), bufferIncrement);
     }
     else {
-        setTimeout(() => {
+        mainLoopTimeout.timeout = setTimeout(() => {
             finishCallback();
             // setTimeout(() => process.exit(), 100);
         }, latestEndingNote - now() + 100);
     }
 };
 const killAllNotes = (data, timeouts, output, mainLoopTimeout) => {
+    console.log('KILL ALL NOTES!');
     if (mainLoopTimeout.timeout) {
         clearTimeout(mainLoopTimeout.timeout);
     }
@@ -71,11 +72,17 @@ const killAllNotes = (data, timeouts, output, mainLoopTimeout) => {
         clearTimeout(timeouts.get(key));
         timeouts.delete(key);
     });
+    console.log('done clearing timeouts');
 };
-const listenForQuit = (handleInput) => {
+const listenForQuit = (killLiveNotes) => {
     console.log('Playing. Press "q" to quit.');
     process.stdin.setRawMode(true);
     process.stdin.resume();
+    const handleInput = (input) => {
+        if (input.toString() === "q") {
+            killLiveNotes();
+        }
+    };
     process.stdin.on("data", handleInput);
 };
 export const play = async (data, finishCallback = () => { }) => {
@@ -89,17 +96,145 @@ export const play = async (data, finishCallback = () => { }) => {
     const timeouts = new Map();
     const mainLoopTimeout = { timeout: null };
     scheduleNotes(data, 0, latestEndingNote, config, timeouts, mainLoopTimeout, output, overallStartTime, finishCallback);
-    const killLiveNotes = () => killAllNotes(data, timeouts, output, mainLoopTimeout);
+    const killLiveNotes = () => {
+        killAllNotes(data, timeouts, output, mainLoopTimeout);
+        finishCallback();
+    };
     return killLiveNotes;
 };
 export const main = async () => {
-    const data = await getDataFromFilenameFromPrompt();
-    const killLiveNotes = await play(data, () => process.stdin.pause());
-    const handleInput = (input) => {
-        if (input.toString() === "q") {
-            killLiveNotes();
-        }
-        process.stdin.pause();
+    // const data = await getDataFromFilenameFromPrompt();
+    const data = {
+        "bpm": 250,
+        "notes": [
+            {
+                "pitch": 47,
+                "velocity": 76,
+                "channel": 1,
+                "time": 0,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 48,
+                "velocity": 85,
+                "channel": 1,
+                "time": 0.5454545454545454,
+                "duration": 0.40909090909090906
+            },
+            {
+                "pitch": 64,
+                "velocity": 81,
+                "channel": 1,
+                "time": 1.0,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 68,
+                "velocity": 88,
+                "channel": 1,
+                "time": 1.5454545454545454,
+                "duration": 0.40909090909090906
+            },
+            {
+                "pitch": 57,
+                "velocity": 81,
+                "channel": 1,
+                "time": 2.0,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 62,
+                "velocity": 86,
+                "channel": 1,
+                "time": 2.5454545454545454,
+                "duration": 0.40909090909090906
+            },
+            {
+                "pitch": 45,
+                "velocity": 77,
+                "channel": 1,
+                "time": 3.0,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 53,
+                "velocity": 80,
+                "channel": 1,
+                "time": 3.5454545454545454,
+                "duration": 0.40909090909090906
+            },
+            {
+                "pitch": 51,
+                "velocity": 71,
+                "channel": 1,
+                "time": 4.0,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 64,
+                "velocity": 76,
+                "channel": 1,
+                "time": 4.545454545454545,
+                "duration": 0.40909090909090906
+            },
+            {
+                "pitch": 62,
+                "velocity": 70,
+                "channel": 1,
+                "time": 4.999999999999999,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 51,
+                "velocity": 78,
+                "channel": 1,
+                "time": 5.545454545454545,
+                "duration": 0.40909090909090906
+            },
+            {
+                "pitch": 52,
+                "velocity": 74,
+                "channel": 1,
+                "time": 5.999999999999999,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 43,
+                "velocity": 83,
+                "channel": 1,
+                "time": 6.545454545454545,
+                "duration": 0.40909090909090906
+            },
+            {
+                "pitch": 59,
+                "velocity": 80,
+                "channel": 1,
+                "time": 6.999999999999999,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 67,
+                "velocity": 88,
+                "channel": 1,
+                "time": 7.545454545454545,
+                "duration": 0.40909090909090906
+            },
+            {
+                "pitch": 73,
+                "velocity": 82,
+                "channel": 1,
+                "time": 7.999999999999999,
+                "duration": 0.4909090909090909
+            },
+            {
+                "pitch": 74,
+                "velocity": 87,
+                "channel": 1,
+                "time": 8.545454545454545,
+                "duration": 0.40909090909090906
+            }
+        ]
     };
-    listenForQuit(handleInput);
+    const killLiveNotes = await play(data, () => process.stdin.pause());
+    listenForQuit(killLiveNotes);
 };
