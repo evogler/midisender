@@ -1,5 +1,5 @@
 {
-  "name": "easymidi",
+  "name": "midisender",
   "version": "1.0.0",
   "description": "A small program that sends midi events, specified in a JSON file, to a virtual midi instrument, in realtime.",
   "main": "playmidi.js",
