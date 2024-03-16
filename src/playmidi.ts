@@ -57,14 +57,14 @@ const scheduleNote = (
   config: Config,
   timeouts: Timeouts,
   output: Output,
-  overallStartTime: number
+  timeOrigin: { overallStartTime: number; startBeat: number }
 ): number => {
   /* returns newLatestEndingNote */
   const startTime =
-    realTime(bpm)(note.time) + overallStartTime + config.bufferSize;
+    realTime(bpm)(note.time - timeOrigin.startBeat) + timeOrigin.overallStartTime + config.bufferSize;
   const endTime =
-    realTime(bpm)(note.time + note.duration) +
-    overallStartTime +
+    realTime(bpm)(note.time + note.duration - timeOrigin.startBeat) +
+    timeOrigin.overallStartTime +
     config.bufferSize;
   const newLatestEndingNote = Math.max(latestEndingNote, endTime);
   const { pitch, channel, velocity } = note;
@@ -98,20 +98,31 @@ const scheduleNotes = (
   timeouts: Timeouts,
   mainLoopTimeout: { timeout: NodeJS.Timeout | null; keepRunning: boolean },
   output: Output,
-  overallStartTime: number,
+  timeOrigin: { overallStartTime: number; startBeat: number },
   finishCallback: () => void
 ) => {
+  // console.log();
+  // console.log(
+  //   `scheduleNotes; overallStartTime: ${timeOrigin.overallStartTime}; startBeat: ${timeOrigin.startBeat}`
+  // );
   if (!mainLoopTimeout.keepRunning) {
     return;
   }
   const { data, notePos, latestEndingNote } = musicDataContext;
   const { bufferSize, bufferIncrement } = config;
-  const timeWindowStart = now() - overallStartTime;
-  const timeWindowEnd = now() + bufferSize - overallStartTime;
+  const timeWindowStart = now() - timeOrigin.overallStartTime;
+  const timeWindowEnd = now() + bufferSize - timeOrigin.overallStartTime;
+  // console.log(`timeWindowStart: ${timeWindowStart}`);
+  // console.log(`timeWindowEnd: ${timeWindowEnd}`);
   let newNotePos = notePos;
   let newLatestEndingNote = latestEndingNote;
   while (newNotePos < data.notes.length) {
-    const noteRealTime = realTime(data.bpm)(data.notes[newNotePos].time);
+    const noteRealTime = realTime(data.bpm)(
+      data.notes[newNotePos].time - timeOrigin.startBeat
+    );
+    // console.log(
+    //   `noteRealTime: ${noteRealTime}; time: ${data.notes[newNotePos].time}`
+    // );
     if (!(noteRealTime < timeWindowEnd)) {
       break;
     }
@@ -128,7 +139,7 @@ const scheduleNotes = (
       config,
       timeouts,
       output,
-      overallStartTime
+      timeOrigin
     );
     newNotePos += 1;
   }
@@ -143,7 +154,7 @@ const scheduleNotes = (
           timeouts,
           mainLoopTimeout,
           output,
-          overallStartTime,
+          timeOrigin,
           finishCallback
         ),
       bufferIncrement
@@ -200,12 +211,13 @@ export const play = async (
 ): Promise<{
   killLiveNotes: () => void;
   swapInData: (data: MusicData) => void;
+  updateBpm: (bpm: number) => void;
 }> => {
   const config: Config = {
     bufferSize: 500, // ms
     bufferIncrement: 100, // ms
   };
-  const overallStartTime = now();
+  const timeOrigin = { overallStartTime: now(), startBeat: 0 };
   const output = new easymidi.Output("my-midi-output", true);
   const latestEndingNote = now();
   const timeouts = new Map<string, NodeJS.Timeout>();
@@ -223,7 +235,7 @@ export const play = async (
     timeouts,
     mainLoopTimeout,
     output,
-    overallStartTime,
+    timeOrigin,
     finishCallback
   );
 
@@ -235,7 +247,20 @@ export const play = async (
     }
     finishCallback();
   };
-  return { killLiveNotes, swapInData };
+
+  const updateBpm = (bpm: number) => {
+    const oldBpm = musicDataContext.data.bpm;
+    const newOverallStartTime = now();
+    const timeElapsed = newOverallStartTime - timeOrigin.overallStartTime;
+    const newStartBeat =
+      timeOrigin.startBeat + (timeElapsed * (oldBpm / 60)) / 1000;
+
+    timeOrigin.overallStartTime = newOverallStartTime;
+    timeOrigin.startBeat = newStartBeat;
+    musicDataContext.data.bpm = bpm;
+    swapInData({ ...musicDataContext.data, bpm });
+  };
+  return { killLiveNotes, swapInData, updateBpm };
 };
 
 export const main = async () => {
@@ -250,14 +275,23 @@ export const main = async () => {
     })),
   };
 
-  const { killLiveNotes, swapInData } = await play(data, () =>
+  const { killLiveNotes, swapInData, updateBpm } = await play(data, () =>
     process.stdin.pause()
   );
 
   const swapData = { data: data2 };
-  listenForKeyboardInput(killLiveNotes, () => {
-    swapInData(swapData.data);
-    const nextData = swapData.data === data2 ? data : data2;
-    swapData.data = nextData;
-  });
+  let newBpm = Math.random() * 150 + 50;
+  listenForKeyboardInput(
+    killLiveNotes,
+    () => {
+      console.log("update triggered.");
+      updateBpm(newBpm);
+      newBpm = Math.random() * 150 + 50;
+    }
+    //   () => {
+    //   swapInData(swapData.data);
+    //   const nextData = swapData.data === data2 ? data : data2;
+    //   swapData.data = nextData;
+    // }
+  );
 };

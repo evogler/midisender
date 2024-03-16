@@ -12,5 +12,6 @@ export interface MusicData {
 export declare const play: (data: MusicData, finishCallback?: () => void) => Promise<{
     killLiveNotes: () => void;
     swapInData: (data: MusicData) => void;
+    updateBpm: (bpm: number) => void;
 }>;
 export declare const main: () => Promise<void>;
