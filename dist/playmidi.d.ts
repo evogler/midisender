@@ -9,9 +9,4 @@ export interface MusicData {
     bpm: number;
     notes: Note[];
 }
-export declare const play: (data: MusicData, finishCallback?: () => void) => Promise<{
-    killLiveNotes: () => void;
-    swapInData: (data: MusicData) => void;
-    updateBpm: (bpm: number) => void;
-}>;
 export declare const main: () => Promise<void>;
