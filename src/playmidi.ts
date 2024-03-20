@@ -11,6 +11,7 @@ export interface Note {
   channel: number;
   time: number;
   duration: number;
+  callbackId?: number;
 }
 
 export interface MusicData {
@@ -18,11 +19,10 @@ export interface MusicData {
   notes: Note[];
 }
 
-type MusicDataContext = {
-  notePos: number;
+export type EventCallbackData = {
+  id: number;
+  status: "noteon" | "noteoff";
 };
-
-type Timeouts = Map<string, NodeJS.Timeout>;
 
 type Config = {
   bufferSize: number;
@@ -45,13 +45,14 @@ const realTime = (bpm: number) => (time: number) => time * (60 / bpm) * 1000;
 
 const now = (): number => ((t) => (t[0] + t[1] / 1e9) * 1000)(process.hrtime());
 
-class MidiPlayer {
+export class MidiPlayer {
   data: MusicData;
   notePos: number;
   timeouts: Map<string, NodeJS.Timeout>;
   output: easymidi.Output;
   config: Config;
   mainLoopTimeout: { timeout: NodeJS.Timeout | null; keepRunning: boolean };
+  eventCallback?: ({ id, status }: EventCallbackData) => void;
   finishCallback: () => void;
   overallStartTime: number;
   startBeat: number;
@@ -80,13 +81,11 @@ class MidiPlayer {
       this.overallStartTime +
       this.config.bufferSize;
     const endTime =
-      realTime(this.data.bpm)(
-        note.time + note.duration - this.startBeat
-      ) +
+      realTime(this.data.bpm)(note.time + note.duration - this.startBeat) +
       this.overallStartTime +
       this.config.bufferSize;
     this.latestEndingNote = Math.max(this.latestEndingNote, endTime);
-    const { pitch, channel, velocity } = note;
+    const { pitch, channel, velocity, callbackId } = note;
 
     this.timeouts.set(
       [noteId, "noteon", `pitch: ${pitch}`].toString(),
@@ -97,6 +96,9 @@ class MidiPlayer {
           velocity,
         } as EasymidiNote);
         this.timeouts.delete([noteId, "noteon"].toString());
+        if (callbackId !== undefined && this.eventCallback !== undefined) {
+          this.eventCallback({ id: callbackId, status: "noteon" });
+        }
       }, startTime - now())
     );
 
@@ -109,6 +111,9 @@ class MidiPlayer {
           velocity,
         } as EasymidiNote);
         this.timeouts.delete([noteId, "noteoff"].toString());
+        if (callbackId !== undefined && this.eventCallback !== undefined) {
+          this.eventCallback({ id: callbackId, status: "noteoff" });
+        }
       }, endTime - now())
     );
   }
@@ -196,13 +201,16 @@ class MidiPlayer {
     const oldBpm = this.data.bpm;
     const newOverallStartTime = now();
     const timeElapsed = newOverallStartTime - this.overallStartTime;
-    const newStartBeat =
-      this.startBeat + (timeElapsed * (oldBpm / 60)) / 1000;
+    const newStartBeat = this.startBeat + (timeElapsed * (oldBpm / 60)) / 1000;
 
     this.overallStartTime = newOverallStartTime;
     this.startBeat = newStartBeat;
     this.data.bpm = bpm;
     this.swapInData({ ...this.data, bpm });
+  }
+
+  setEventCallback(callback: (data: EventCallbackData) => void) {
+    this.eventCallback = callback;
   }
 
   async play() {
@@ -216,8 +224,11 @@ export const main = async () => {
 
   const player = new MidiPlayer(data, () => process.stdin.pause());
 
-  await player.play();
+  player.setEventCallback(({id, status}) => {
+    console.log(`${status}: ${id}`);
+  });
 
+  await player.play();
   player.listenForKeyboardInput(() => {
     console.log("update triggered.");
     player.updateBpm(Math.random() * 150 + 50);

@@ -12,7 +12,7 @@ const getDataFromFilenameFromPrompt = async () => {
 };
 const realTime = (bpm) => (time) => time * (60 / bpm) * 1000;
 const now = () => ((t) => (t[0] + t[1] / 1e9) * 1000)(process.hrtime());
-class MidiPlayer {
+export class MidiPlayer {
     constructor(data, finishCallback) {
         this.data = data;
         this.notePos = 0;
@@ -37,7 +37,7 @@ class MidiPlayer {
             this.overallStartTime +
             this.config.bufferSize;
         this.latestEndingNote = Math.max(this.latestEndingNote, endTime);
-        const { pitch, channel, velocity } = note;
+        const { pitch, channel, velocity, callbackId } = note;
         this.timeouts.set([noteId, "noteon", `pitch: ${pitch}`].toString(), setTimeout(() => {
             this.output.send("noteon", {
                 note: pitch,
@@ -45,6 +45,9 @@ class MidiPlayer {
                 velocity,
             });
             this.timeouts.delete([noteId, "noteon"].toString());
+            if (callbackId !== undefined && this.eventCallback !== undefined) {
+                this.eventCallback({ id: callbackId, status: "noteon" });
+            }
         }, startTime - now()));
         this.timeouts.set([noteId, "noteoff", `pitch: ${pitch}`].toString(), setTimeout(() => {
             this.output.send("noteoff", {
@@ -53,6 +56,9 @@ class MidiPlayer {
                 velocity,
             });
             this.timeouts.delete([noteId, "noteoff"].toString());
+            if (callbackId !== undefined && this.eventCallback !== undefined) {
+                this.eventCallback({ id: callbackId, status: "noteoff" });
+            }
         }, endTime - now()));
     }
     scheduleNotes() {
@@ -135,6 +141,9 @@ class MidiPlayer {
         this.data.bpm = bpm;
         this.swapInData({ ...this.data, bpm });
     }
+    setEventCallback(callback) {
+        this.eventCallback = callback;
+    }
     async play() {
         this.latestEndingNote = now();
         this.scheduleNotes();
@@ -143,6 +152,9 @@ class MidiPlayer {
 export const main = async () => {
     const data = await getDataFromFilenameFromPrompt();
     const player = new MidiPlayer(data, () => process.stdin.pause());
+    player.setEventCallback(({ id, status }) => {
+        console.log(`${status}: ${id}`);
+    });
     await player.play();
     player.listenForKeyboardInput(() => {
         console.log("update triggered.");
