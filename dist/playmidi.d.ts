@@ -6,14 +6,14 @@ export interface Note {
     channel: number;
     time: number;
     duration: number;
-    callbackId?: number;
+    callbackId?: string;
 }
 export interface MusicData {
     bpm: number;
     notes: Note[];
 }
 export declare type EventCallbackData = {
-    id: number;
+    id: string;
     status: "noteon" | "noteoff";
 };
 declare type Config = {
