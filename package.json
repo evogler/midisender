@@ -7,7 +7,7 @@
   "module": "ESNext",
   "types": "./dist/playmidi.d.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "play": "node dist/main.js"
   },
   "repository": {
     "type": "git",
