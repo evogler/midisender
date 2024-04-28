@@ -1,9 +1,6 @@
 import * as easymidi from "easymidi";
-import { Output, Note as EasymidiNote } from "easymidi";
+import { Note as EasymidiNote } from "easymidi";
 import { readFile } from "fs/promises";
-import { kill } from "process";
-
-// types
 
 export interface Note {
   pitch: number;
@@ -75,7 +72,6 @@ export class MidiPlayer {
   }
 
   private scheduleNote(note: Note, noteId: number) {
-    /* returns newLatestEndingNote */
     const startTime =
       realTime(this.data.bpm)(note.time - this.startBeat) +
       this.overallStartTime +
